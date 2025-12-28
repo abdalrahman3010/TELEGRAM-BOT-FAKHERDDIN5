@@ -1,0 +1,583 @@
+# ========= HARD =========
+import hashlib
+import sys
+import os
+
+EXPECTED_HASH = "#LALA MA3LYKCH "
+
+def check_integrity():
+    try:
+        with open(__file__, "rb") as f:
+            current_hash = hashlib.sha256(f.read()).hexdigest()
+        if current_hash != EXPECTED_HASH:
+            print("❌ FFFFFF")
+            sys.exit(1)
+    except Exception:
+        print("❌ FFFFFF")
+        sys.exit(1)
+
+check_integrity()
+#TTTTT
+
+
+import json
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+
+def get_token():
+    token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+    if token:
+        return token
+    try:
+        with open('token.txt', 'r', encoding='utf-8') as f:
+            token = f.read().strip()
+            if token:
+                return token
+    except FileNotFoundError:
+        pass
+    return ''
+
+TOKEN = get_token()
+ADMIN_CODE = "111333"
+SIGNATURE = "\n\n© @FAKHERDDIN5\nhttps://t.me/stonexff"
+DATA_FILE = "bot_data.json"
+
+def load_data():
+    try:
+        with open(DATA_FILE, "r", encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {
+            "balances": {},
+            "sellers": {},
+            "keys": {"FREE": [], "WIZARD": [], "DRIP": [], "CERT": []},
+            "sales_log": []
+        }
+
+def save_data(data):
+    with open(DATA_FILE, "w", encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+PRICES = {
+    "FREE": {1: 3, 7: 7, 31: 13},
+    "WIZARD": {1: 3, 7: 7, 31: 13},
+    "DRIP": {1: 2, 7: 5, 15: 8, 31: 12},
+    "CERT": {1: 6}
+}
+
+# ========== START ==========
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("🛍️ Buy Keys", callback_data="buy_menu")],
+        [InlineKeyboardButton("💰 My Balance", callback_data="show_balance")],
+        [InlineKeyboardButton("🔐 Admin Panel", callback_data="admin_login")]
+    ]
+    await update.message.reply_text(
+        "Welcome to Sales Bot! Choose an option below:" + SIGNATURE,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ========== CALLBACK HANDLER ==========
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == "back_to_start":
+        await start(update, context)
+        return
+
+    if data == "show_balance":
+        user_id = str(query.from_user.id)
+        data_dict = load_data()
+        bal = data_dict["balances"].get(user_id, 0)
+        await query.edit_message_text(f"Your Balance: ${bal}" + SIGNATURE)
+        return
+
+    if data == "buy_menu":
+        keyboard = [
+            [InlineKeyboardButton("🔥 FREE FIRE", callback_data="buy:FREE")],
+            [InlineKeyboardButton("✨ WIZARD", callback_data="buy:WIZARD")],
+            [InlineKeyboardButton("💧 DRIP", callback_data="buy:DRIP")],
+            [InlineKeyboardButton("🎖️ CERTIFICATE", callback_data="buy:CERT")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="back_to_start")]
+        ]
+        await query.edit_message_text("Select product:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
+    if data.startswith("buy:"):
+        product = data.split(":")[1]
+        keyboard = []
+        for days, price in sorted(PRICES[product].items()):
+            keyboard.append([InlineKeyboardButton(f"{days} Days - ${price}", callback_data=f"pay:{product}:{days}")])
+        keyboard.append([InlineKeyboardButton("⬅️ Back", callback_data="buy_menu")])
+        await query.edit_message_text(f"Select duration:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
+    if data.startswith("pay:"):
+        _, product, days = data.split(":")
+        days = int(days)
+        price = PRICES[product][days]
+        user_id = str(query.from_user.id)
+        data_dict = load_data()
+
+        if data_dict["balances"].get(user_id, 0) < price:
+            await query.edit_message_text("❌ Insufficient balance" + SIGNATURE)
+            return
+
+        if not data_dict["keys"][product]:
+            await query.edit_message_text("❌ No keys available" + SIGNATURE)
+            return
+
+        key = data_dict["keys"][product].pop(0)
+        data_dict["balances"][user_id] -= price
+        data_dict["sales_log"].append({
+            "user": user_id,
+            "product": product,
+            "days": days,
+            "price": price
+        })
+        save_data(data_dict)
+        await query.edit_message_text(f"✅ Your Key:\n`{key}`" + SIGNATURE, parse_mode="Markdown")
+        return
+
+# ========== MESSAGE HANDLER ==========
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pass
+
+# ========== MAIN ==========
+def main():
+    if not TOKEN:
+        print("❌ Telegram token not set")
+        return
+
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(callback_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    print("Bot running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
+
+
+# ========== CALLBACK HANDLER ==========
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == "back_to_start":
+        await start(update, context)
+        return
+
+    if data == "show_balance":
+        user_id = str(query.from_user.id)
+        data_dict = load_data()
+        bal = data_dict["balances"].get(user_id, 0)
+        await query.edit_message_text(f"Your Balance: ${bal}" + SIGNATURE)
+        return
+
+    if data == "buy_menu":
+        keyboard = [
+            [InlineKeyboardButton("🔥 FREE FIRE", callback_data="buy:FREE")],
+            [InlineKeyboardButton("✨ WIZARD", callback_data="buy:WIZARD")],
+            [InlineKeyboardButton("💧 DRIP", callback_data="buy:DRIP")],
+            [InlineKeyboardButton("🎖️ CERTIFICATE", callback_data="buy:CERT")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="back_to_start")]
+        ]
+        await query.edit_message_text("Select product:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
+    if data.startswith("buy:"):
+        product = data.split(":")[1]
+        keyboard = []
+        for days, price in sorted(PRICES[product].items()):
+            keyboard.append([InlineKeyboardButton(f"{days} Days - ${price}", callback_data=f"pay:{product}:{days}")])
+        keyboard.append([InlineKeyboardButton("⬅️ Back", callback_data="buy_menu")])
+        await query.edit_message_text(f"Select duration:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
+    if data.startswith("pay:"):
+        _, product, days = data.split(":")
+        days = int(days)
+        price = PRICES[product][days]
+        user_id = str(query.from_user.id)
+        data_dict = load_data()
+
+        if data_dict["balances"].get(user_id, 0) < price:
+            await query.edit_message_text("❌ Insufficient balance" + SIGNATURE)
+            return
+
+        if not data_dict["keys"][product]:
+            await query.edit_message_text("❌ No keys available" + SIGNATURE)
+            return
+
+        key = data_dict["keys"][product].pop(0)
+        data_dict["balances"][user_id] -= price
+        data_dict["sales_log"].append({
+            "user": user_id,
+            "product": product,
+            "days": days,
+            "price": price
+        })
+        save_data(data_dict)
+        await query.edit_message_text(f"✅ Your Key:\n`{key}`" + SIGNATURE, parse_mode="Markdown")
+        return
+
+# ========== MESSAGE HANDLER ==========
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pass
+
+# ========== MAIN ==========
+def main():
+    if not TOKEN:
+        print("❌ Telegram token not set")
+        return
+
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(callback_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    print("Bot running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
+
+    )
+
+# ========== BUY SECTION ==========
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    
+    # MAIN MENU
+    if data == "back_to_start":
+        keyboard = [
+            [InlineKeyboardButton("🛍️ Buy Keys", callback_data="buy_menu")],
+            [InlineKeyboardButton("💰 My Balance", callback_data="show_balance")],
+            [InlineKeyboardButton("🔐 Admin Panel", callback_data="admin_login")]
+        ]
+        await query.edit_message_text(
+            "Welcome to Sales Bot! Choose an option below:" + SIGNATURE,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+    
+    # SHOW BALANCE
+    if data == "show_balance":
+        user_id = str(query.from_user.id)
+        data_dict = load_data()
+        bal = data_dict["balances"].get(user_id, 0)
+        await query.edit_message_text(f"Your Balance: ${bal}" + SIGNATURE)
+        return
+    
+    # BUY MENU
+    if data == "buy_menu":
+        keyboard = [
+            [InlineKeyboardButton("🔥 FREE FIRE", callback_data="buy:FREE")],
+            [InlineKeyboardButton("✨ WIZARD", callback_data="buy:WIZARD")],
+            [InlineKeyboardButton("💧 DRIP", callback_data="buy:DRIP")],
+            [InlineKeyboardButton("🎖️ CERTIFICATE", callback_data="buy:CERT")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="back_to_start")]
+        ]
+        await query.edit_message_text("Select product:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+    
+    # SELECT PRODUCT & SHOW DURATIONS
+    if data.startswith("buy:"):
+        product = data.split(":")[1]
+        keyboard = []
+        for days, price in sorted(PRICES[product].items()):
+            keyboard.append([InlineKeyboardButton(f"⏱️ {days}d - ${price}", callback_data=f"pay:{product}:{days}")])
+        keyboard.append([InlineKeyboardButton("⬅️ Back", callback_data="buy_menu")])
+        await query.edit_message_text(f"Select duration for {product}:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+    
+    # PROCESS PURCHASE
+    if data.startswith("pay:"):
+        parts = data.split(":")
+        product = parts[1]
+        days = int(parts[2])
+        price = PRICES[product][days]
+        user_id = str(query.from_user.id)
+        data_dict = load_data()
+        
+        balance = data_dict["balances"].get(user_id, 0)
+        
+        if balance < price:
+            await query.edit_message_text(f"❌ Insufficient balance!\nPrice: ${price}\nYour balance: ${balance}" + SIGNATURE)
+            return
+        
+        if not data_dict["keys"][product]:
+            await query.edit_message_text(f"❌ No {product} keys available." + SIGNATURE)
+            return
+        
+        key = data_dict["keys"][product].pop(0)
+        data_dict["balances"][user_id] -= price
+        data_dict["sales_log"].append({"user": user_id, "product": product, "duration": days, "price": price})
+        save_data(data_dict)
+        
+        await query.edit_message_text(f"✅ Purchase Successful!\n\nYour Key:\n`{key}`" + SIGNATURE, parse_mode="Markdown")
+        return
+    
+    # ========== ADMIN SECTION ==========
+    if data == "admin_login":
+        await query.edit_message_text("Enter admin code:" + SIGNATURE)
+        context.user_data["awaiting_admin_code"] = True
+        return
+    
+    # ADMIN MENU
+    if data == "admin_menu":
+        keyboard = [
+            [InlineKeyboardButton("💳 Add Balance", callback_data="admin_add_balance")],
+            [InlineKeyboardButton("💸 Withdraw", callback_data="admin_withdraw")],
+            [InlineKeyboardButton("🔑 Add Keys", callback_data="admin_add_keys")],
+            [InlineKeyboardButton("👥 Sellers", callback_data="admin_sellers")],
+            [InlineKeyboardButton("📊 Stats", callback_data="admin_stats")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="back_to_start")]
+        ]
+        await query.edit_message_text("Admin Menu:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+    
+    # ADD BALANCE
+    if data == "admin_add_balance":
+        back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_menu")]])
+        await query.edit_message_text("Send: user_id amount\nExample: 123456789 100" + SIGNATURE, reply_markup=back)
+        context.user_data["admin_action"] = "add_balance"
+        return
+    
+    # WITHDRAW
+    if data == "admin_withdraw":
+        back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_menu")]])
+        await query.edit_message_text("Send: user_id amount\nExample: 123456789 50" + SIGNATURE, reply_markup=back)
+        context.user_data["admin_action"] = "withdraw"
+        return
+    
+    # ADD KEYS
+    if data == "admin_add_keys":
+        keyboard = [
+            [InlineKeyboardButton("🔥 FREE", callback_data="select_product:FREE")],
+            [InlineKeyboardButton("✨ WIZARD", callback_data="select_product:WIZARD")],
+            [InlineKeyboardButton("💧 DRIP", callback_data="select_product:DRIP")],
+            [InlineKeyboardButton("🎖️ CERT", callback_data="select_product:CERT")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="admin_menu")]
+        ]
+        await query.edit_message_text("Select product:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+    
+    # SELECT PRODUCT FOR KEYS
+    if data.startswith("select_product:"):
+        product = data.split(":")[1]
+        context.user_data["admin_action"] = "add_keys"
+        context.user_data["product"] = product
+        back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_add_keys")]])
+        await query.edit_message_text(f"Send {product} keys (one per line):" + SIGNATURE, reply_markup=back)
+        return
+    
+    # SELLERS MENU
+    if data == "admin_sellers":
+        keyboard = [
+            [InlineKeyboardButton("➕ Add Seller", callback_data="add_seller")],
+            [InlineKeyboardButton("➖ Remove Seller", callback_data="remove_seller")],
+            [InlineKeyboardButton("📋 List Sellers", callback_data="list_sellers")],
+            [InlineKeyboardButton("💰 Add Seller Balance", callback_data="seller_balance")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="admin_menu")]
+        ]
+        await query.edit_message_text("Seller Management:" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+    
+    # ADD SELLER
+    if data == "add_seller":
+        back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_sellers")]])
+        await query.edit_message_text("Send: seller_id name\nExample: 123456789 Ahmed" + SIGNATURE, reply_markup=back)
+        context.user_data["admin_action"] = "add_seller"
+        return
+    
+    # REMOVE SELLER
+    if data == "remove_seller":
+        back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_sellers")]])
+        await query.edit_message_text("Send seller_id to remove:" + SIGNATURE, reply_markup=back)
+        context.user_data["admin_action"] = "remove_seller"
+        return
+    
+    # LIST SELLERS
+    if data == "list_sellers":
+        data_dict = load_data()
+        if not data_dict["sellers"]:
+            back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_sellers")]])
+            await query.edit_message_text("No sellers yet." + SIGNATURE, reply_markup=back)
+            return
+        text = "**Sellers:**\n\n"
+        for sid, info in data_dict["sellers"].items():
+            text += f"• {info['name']} (ID: {sid})\n  Balance: ${info.get('balance', 0)} | Sales: {info.get('sales_count', 0)}\n\n"
+        back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_sellers")]])
+        await query.edit_message_text(text + SIGNATURE, parse_mode="Markdown", reply_markup=back)
+        return
+    
+    # ADD SELLER BALANCE
+    if data == "seller_balance":
+        back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_sellers")]])
+        await query.edit_message_text("Send: seller_id amount\nExample: 123456789 500" + SIGNATURE, reply_markup=back)
+        context.user_data["admin_action"] = "seller_balance"
+        return
+    
+    # STATS
+    if data == "admin_stats":
+        data_dict = load_data()
+        total_users = len(data_dict["balances"])
+        total_sellers = len(data_dict["sellers"])
+        total_keys = sum(len(v) for v in data_dict["keys"].values())
+        total_sales = len(data_dict["sales_log"])
+        total_revenue = sum(log["price"] for log in data_dict["sales_log"])
+        
+        text = f"""**Statistics:**
+
+Users: {total_users}
+Sellers: {total_sellers}
+Available Keys: {total_keys}
+Total Sales: {total_sales}
+Revenue: ${total_revenue}
+
+**Keys Breakdown:**
+FREE: {len(data_dict['keys']['FREE'])}
+WIZARD: {len(data_dict['keys']['WIZARD'])}
+DRIP: {len(data_dict['keys']['DRIP'])}
+CERT: {len(data_dict['keys']['CERT'])}
+"""
+        back = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="admin_menu")]])
+        await query.edit_message_text(text + SIGNATURE, parse_mode="Markdown", reply_markup=back)
+        return
+
+# ========== MESSAGE HANDLER ==========
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    
+    # ADMIN CODE
+    if context.user_data.get("awaiting_admin_code"):
+        if text == ADMIN_CODE:
+            context.user_data.pop("awaiting_admin_code")
+            keyboard = [
+                [InlineKeyboardButton("💳 Add Balance", callback_data="admin_add_balance")],
+                [InlineKeyboardButton("💸 Withdraw", callback_data="admin_withdraw")],
+                [InlineKeyboardButton("🔑 Add Keys", callback_data="admin_add_keys")],
+                [InlineKeyboardButton("👥 Sellers", callback_data="admin_sellers")],
+                [InlineKeyboardButton("📊 Stats", callback_data="admin_stats")],
+                [InlineKeyboardButton("⬅️ Back", callback_data="back_to_start")]
+            ]
+            await update.message.reply_text("✅ Admin Access Granted!" + SIGNATURE, reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            await update.message.reply_text("❌ Wrong code!" + SIGNATURE)
+        return
+    
+    action = context.user_data.get("admin_action")
+    
+    # ADD BALANCE
+    if action == "add_balance":
+        try:
+            parts = text.split()
+            uid, amount = parts[0], float(parts[1])
+            data = load_data()
+            data["balances"][uid] = data["balances"].get(uid, 0) + amount
+            save_data(data)
+            await update.message.reply_text(f"✅ Added ${amount} to user {uid}. Balance: ${data['balances'][uid]}" + SIGNATURE)
+            context.user_data.pop("admin_action")
+        except:
+            await update.message.reply_text("❌ Invalid format: user_id amount" + SIGNATURE)
+        return
+    
+    # WITHDRAW
+    if action == "withdraw":
+        try:
+            parts = text.split()
+            uid, amount = parts[0], float(parts[1])
+            data = load_data()
+            if data["balances"].get(uid, 0) < amount:
+                await update.message.reply_text(f"❌ Insufficient balance! Available: ${data['balances'].get(uid, 0)}" + SIGNATURE)
+            else:
+                data["balances"][uid] -= amount
+                save_data(data)
+                await update.message.reply_text(f"✅ Withdrew ${amount} from user {uid}. Balance: ${data['balances'][uid]}" + SIGNATURE)
+                context.user_data.pop("admin_action")
+        except:
+            await update.message.reply_text("❌ Invalid format: user_id amount" + SIGNATURE)
+        return
+    
+    # ADD KEYS
+    if action == "add_keys":
+        product = context.user_data.get("product", "DRIP")
+        keys = [k.strip() for k in text.split("\n") if k.strip()]
+        data = load_data()
+        data["keys"][product].extend(keys)
+        save_data(data)
+        await update.message.reply_text(f"✅ Added {len(keys)} keys to {product}." + SIGNATURE)
+        context.user_data.pop("admin_action")
+        context.user_data.pop("product", None)
+        return
+    
+    # ADD SELLER
+    if action == "add_seller":
+        try:
+            parts = text.split(maxsplit=1)
+            sid, name = parts[0], parts[1] if len(parts) > 1 else "Unknown"
+            data = load_data()
+            data["sellers"][sid] = {"name": name, "balance": 0, "sales_count": 0}
+            save_data(data)
+            await update.message.reply_text(f"✅ Added seller '{name}' (ID: {sid})" + SIGNATURE)
+            context.user_data.pop("admin_action")
+        except:
+            await update.message.reply_text("❌ Invalid format: seller_id name" + SIGNATURE)
+        return
+    
+    # REMOVE SELLER
+    if action == "remove_seller":
+        data = load_data()
+        if text in data["sellers"]:
+            name = data["sellers"][text]["name"]
+            del data["sellers"][text]
+            save_data(data)
+            await update.message.reply_text(f"✅ Removed seller '{name}'" + SIGNATURE)
+            context.user_data.pop("admin_action")
+        else:
+            await update.message.reply_text("❌ Seller not found" + SIGNATURE)
+        return
+    
+    # ADD SELLER BALANCE
+    if action == "seller_balance":
+        try:
+            parts = text.split()
+            sid, amount = parts[0], float(parts[1])
+            data = load_data()
+            if sid not in data["sellers"]:
+                await update.message.reply_text(f"❌ Seller {sid} not found" + SIGNATURE)
+            else:
+                data["sellers"][sid]["balance"] = data["sellers"][sid].get("balance", 0) + amount
+                save_data(data)
+                name = data["sellers"][sid]["name"]
+                await update.message.reply_text(f"✅ Added ${amount} to {name}. Balance: ${data['sellers'][sid]['balance']}" + SIGNATURE)
+                context.user_data.pop("admin_action")
+        except:
+            await update.message.reply_text("❌ Invalid format: seller_id amount" + SIGNATURE)
+        return
+
+# ========== MAIN ==========
+def main():
+    if not TOKEN:
+        print("Error: Telegram token not set. Create 'token.txt' with your token or set the TELEGRAM_BOT_TOKEN env var.")
+        return
+    
+    app = Application.builder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(callback_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    
+    print("Bot running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
